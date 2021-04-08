@@ -67,6 +67,11 @@ public class Graph
         return m_Nodes;
     }
 
+    public List<List<Edge>> AdjacentList()
+    {
+        return m_AdjacentList;
+    }
+
     public List<Edge> GetNodeEdgeList(int node)
     {
         if (node >= m_Nodes.Count || m_Nodes[node].m_Index == invalid_Node)

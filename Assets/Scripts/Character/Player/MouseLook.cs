@@ -13,48 +13,46 @@ public class MouseLook : MonoBehaviour
 
     private void Start()
     {
-        float x = transform.eulerAngles.x;
-        float y = transform.eulerAngles.y;
+        x = transform.eulerAngles.x;
+        y = transform.eulerAngles.y;
     }
 
     // Update is called once per frame
     void Update()
     {
-        x += -Input.GetAxis("Mouse Y");
-        y += Input.GetAxis("Mouse X");
-        x = Mathf.Clamp(x, -55, 45);
-
-        // Apply 90 degree keyboard rotation
-        if (m_Player.IsMoving() == false)
+        // Only update camera/game when playing mode active
+        if (GameManager.Instance.GameState == GameState.Playing)
         {
-            if (Input.GetKeyDown(KeyCode.Q))
+            x += -Input.GetAxis("Mouse Y");
+            y += Input.GetAxis("Mouse X");
+            x = Mathf.Clamp(x, -55, 45);
+
+            transform.eulerAngles = new Vector3(x, y, 0);
+
+            // Sync camera too player
+            transform.position = m_Player.transform.position;
+
+
+            RaycastHit hit;
+            Ray ray = new Ray(transform.position, transform.forward);
+
+            if (Physics.Raycast(ray, out hit))
             {
-                y = Quaternion.LookRotation(GetCardinalForward()).eulerAngles.y;
-                y += -90;
-            }
-            else if (Input.GetKeyDown(KeyCode.E))
-            {
-                y = Quaternion.LookRotation(GetCardinalForward()).eulerAngles.y;
-                y += 90;
-            }
-        }
-
-        transform.eulerAngles = new Vector3(x,y,0);
-
-        // Sync camera too player
-        transform.position = m_Player.transform.position;
-
-        RaycastHit hit;
-        Ray ray = new Ray(transform.position, transform.forward);
-
-        if (Physics.Raycast(ray, out hit))
-        {
-            if(hit.transform.tag == "Item")
-            {
-                // tell game manager to display pick up message?
-                if(Input.GetKey(KeyCode.R) && m_Player.m_Inventory.HasFreSpace())
+                if (hit.transform.CompareTag("Item"))
                 {
-                   hit.transform.GetComponent<ItemWorld>().OnPickUp();
+                    // tell game manager to display pick up message?
+                    if (Input.GetKey(KeyCode.E) && m_Player.m_Inventory.HasFreeSpace())
+                    {
+                        hit.transform.GetComponent<ItemWorld>().OnPickUp();
+                    }
+                }
+                else if (hit.transform.CompareTag("Exit") && (hit.transform.position - this.transform.position).sqrMagnitude < 3 * 3)
+                {
+                    if (Input.GetKey(KeyCode.E))
+                    {
+                        // Display transition loading crap..
+                        GameManager.Instance.NextMap();
+                    }
                 }
             }
         }

@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 85510c0a674052c47bbd11e764627b52, type: 3}
+  m_Name: Axe
+  m_EditorClassIdentifier: 
+  m_ItemState: 0
+  m_ItemType: 2
+  m_ItemName: Axe
+  m_Description: 
+  m_PickupDistance: 1
+  m_Cost: 10
+  m_UseSound:
+  - {fileID: 8300000, guid: b9d5933a3e1d4154b93400476be6e3dd, type: 3}
+  - {fileID: 8300000, guid: 282c6a18ce99df74cabbbaafba088021, type: 3}
+  - {fileID: 8300000, guid: 5db83f87ef48f6c469cc7ac10e84f1e4, type: 3}
+  m_Pickup:
+  - {fileID: 8300000, guid: 8d4d5daf422eab6499784143ea73fcb4, type: 3}
+  m_Sprite: {fileID: 5601323976189978565, guid: 693d5d73f8a4a78489d2dc9f31191dfd, type: 3}
+  m_IsStackable: 0
+  m_IsUseableInInventory: 0
+  m_Amount: 1
+  m_Damage: 18
+  m_Delay: 1.5
+  m_EnergyCost: 6
+  m_StatusType: 0
+  m_WeaponType: 0

@@ -1,62 +1,95 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
 [RequireComponent(typeof(CharacterController))]
-public class Player : MonoBehaviour
+public class Player : Unit
 {
-    public string   m_CharacterName = "Hero";
-    public int      m_Level = 1;
-    public int      m_ExperiencePoints = 0;
-
-    //--State--
-    public Attribute    m_Health;
-    public Attribute    m_Energy;
-    public Attribute    m_Food;
-    public Attribute    m_CaryWeight;
-
-    //--Stats--
-    public Attribute m_Strength;
-    public Attribute m_Dexterity;
-    public Attribute m_Vitality;
-    public Attribute m_Willpower;
-
-    public float m_MoveSpeed = 5.0f;
-    public float m_RotSpeed = 5.0f;
-    public int   m_CellSize = 4; // Maybe fetch this from a map.
-    public Inventory m_Inventory;
-
+    public Inventory        m_Inventory;
+    public StatusBar        m_HealthBar;
+    public StatusBar        m_EnergyBar;
+    public List<ItemSlot>   m_HotBar;
+    public HandItem         m_EquippedItem;
 
     // Movment Targets
     private Vector3     m_TargetPosition;
-    private Quaternion  m_TargetRotation;
     private MouseLook   m_Camera;
+    private int         m_HotBarIndex = 0;
 
     // Start is called before the first frame update
     void Start()
     {
-        m_TargetPosition = transform.position;
-        m_TargetRotation = transform.rotation;
+        Initialize();
         m_Camera = Camera.main.GetComponent<MouseLook>();
+    }
+
+    // Pretty much resets the player
+    public override void Initialize()
+    {
+        base.Initialize();
+
+        // Set Players UI Up
+        m_StatusEffects.Clear();
+        m_HealthBar.Initialize(m_Health);
+        m_EnergyBar.Initialize(m_Energy);
         m_Inventory.Initlaize();
+        m_HotBarIndex = 0;
+
+        m_HotBar[m_HotBarIndex].SetItem(GameManager.Instance.m_ItemFactory.GetRandomWeapon());
+        SetEquipedItem(m_HotBar[m_HotBarIndex].m_Item);
+
+        EnergyEffect effect = (EnergyEffect)StatusEffect.GetStatusEffect(StatusEffectType.Energy);
+        effect.m_Endless = true;
+        effect.m_ModifierValue = 2;
+        AddStatusEffect(effect);
     }
 
     // Update is called once per frame
-    void Update()
+    public override void Update()
     {
-        // Update buffs
+        if (GameManager.Instance.GameState == GameState.Playing)
+        {
+            base.Update(); // Updates status effects
+            // UpdaeBuffs(); ??
+            UpdateRotation();
+            UpdateMovment();
+            // UpdateCombat();
 
-        UpdateRotation();
-        UpdateMovment();
+            // Check for inventory key
+            if (Input.GetKeyDown(KeyCode.Tab))
+            {
+                GameManager.Instance.GameState = GameState.Inventory;
+            }
 
-        // Check for Combat stuffs?
+            if(IsDead())
+            {
+                Die();
+            }
+        }
+        else if (GameManager.Instance.GameState == GameState.Inventory)
+        {
+            // Resume playing it i or escape pressed
+            if(Input.GetKeyDown(KeyCode.Tab) || Input.GetKeyDown(KeyCode.Escape))
+            {
+                GameManager.Instance.GameState = GameState.Playing;
+            }
+        }
+
+        float scrolled = Input.mouseScrollDelta.y;
+        if (scrolled > 0)
+        {
+            IncrementHotBar();
+        }
+        else if (scrolled < 0)
+        {
+            DecrementHotBar();
+        }
     }
 
     public float AttackPower()
     {
-        // retrun some attack power which is how mauch damage we want o deal
-        // The damage "reciver" will use damage resistance
-        return 0;
+        return m_Strength.CurrentValue;
     }
 
     public int NextLevelXP()
@@ -93,7 +126,18 @@ public class Player : MonoBehaviour
             {
                 dir.z -= m_CellSize;
             }
-            m_TargetPosition += transform.TransformDirection(dir);
+
+            if (dir.magnitude > 0.1)
+            {
+                Vector3 goalPosition = m_TargetPosition + transform.TransformDirection(dir);
+                if (GameManager.Instance.m_Dungeon.m_Grid.GetTileFromWorld(goalPosition.x, goalPosition.z).IsBlocked() == false)
+                {
+                    GameManager.Instance.m_Dungeon.m_Grid.SetTileBlockedFromWorld(m_TargetPosition.x, m_TargetPosition.z, false);
+                    m_TargetPosition = goalPosition;
+                    GameManager.Instance.m_Dungeon.m_Grid.SetTileBlockedFromWorld(m_TargetPosition.x, m_TargetPosition.z, true);
+                    GameManager.Instance.m_Dungeon.TilePathFinder.FindPath(GameManager.Instance.m_Dungeon.m_Grid.WorldToTilePosition(goalPosition.x, goalPosition.z));
+                }
+            }
         }
 
         transform.position = Vector3.Lerp(transform.position, m_TargetPosition, m_MoveSpeed * Time.deltaTime);
@@ -107,5 +151,101 @@ public class Player : MonoBehaviour
             return true;
         }
         return false;
+    }
+
+    public void IncrementHotBar()
+    {
+        m_HotBarIndex = (m_HotBarIndex + 1);
+        if (m_HotBarIndex > m_HotBar.Count -1)
+        {
+            m_HotBarIndex = 0;
+        }
+
+        if (m_HotBar[m_HotBarIndex] != null)
+        {
+            SetEquipedItem(m_HotBar[m_HotBarIndex].m_Item);
+        }
+    }
+
+    public void DecrementHotBar()
+    {
+        --m_HotBarIndex;
+        if(m_HotBarIndex < 0)
+        {
+            m_HotBarIndex = m_HotBar.Count - 1;
+        }
+
+        if (m_HotBar[m_HotBarIndex] != null)
+        {
+            SetEquipedItem(m_HotBar[m_HotBarIndex].m_Item);
+        }
+    }
+
+    public void SetEquipedItem(Item item)
+    {
+        m_EquippedItem.SetItem(item, m_HotBarIndex);
+
+        for (int i = 0; i < m_HotBar.Count; i++)
+        {
+            if (i == m_HotBarIndex)
+            {
+                m_HotBar[i].m_Slot.color = Color.white;
+            }
+            else
+            {
+                m_HotBar[i].m_Slot.color = Color.white * 0.5f;
+            }
+        }
+    }
+
+    public void AddItemToHotBar(int index, Item item)
+    {
+        if (index < m_HotBar.Count)
+        {
+            m_HotBar[index].SetItem(item);
+
+            if (index == m_HotBarIndex)
+            {
+                SetEquipedItem(item);
+            }
+        }
+    }
+
+    public Item RemoveItemFromHotBar(int index)
+    {
+        Item item = null;
+        if (index < m_HotBar.Count)
+        {
+            item = m_HotBar[index].m_Item;
+            m_HotBar[index].SetItem(null);
+
+            if (index == m_HotBarIndex)
+            {
+                SetEquipedItem(null);
+            }
+        }
+
+        return item;
+    }
+
+    public void RefreshEquipped()
+    {
+        m_EquippedItem.SetItem(m_HotBar[m_HotBarIndex].m_Item, m_HotBarIndex);
+    }
+
+    public void TakeDamage(int amount)
+    {
+        m_Health.CurrentValue -= amount;
+    }
+
+    private void Die()
+    {
+        GameManager.Instance.GameState = GameState.Dead;
+    }
+
+    public void SetPosition(Vector3 position)
+    {
+        m_TargetPosition = position;
+        transform.position = position;
     }
 }

@@ -13,13 +13,20 @@ MonoBehaviour:
   m_Name: Red_Potion
   m_EditorClassIdentifier: 
   m_ItemState: 0
+  m_ItemType: 1
   m_ItemName: Red Potion
   m_Description: Heals health when drank
   m_PickupDistance: 1
-  m_FloatAmplitude: 0.08
   m_Cost: 10
-  m_UseSound: {fileID: 8300000, guid: e9f8d1bf2ef21c54c8dfd193ead6e41e, type: 3}
-  m_Pickup: {fileID: 8300000, guid: e7a86ceb3ab7e8046860783d9c2572a5, type: 3}
+  m_UseSound:
+  - {fileID: 8300000, guid: e9f8d1bf2ef21c54c8dfd193ead6e41e, type: 3}
+  m_Pickup:
+  - {fileID: 8300000, guid: e7a86ceb3ab7e8046860783d9c2572a5, type: 3}
   m_Sprite: {fileID: -3858848611960166880, guid: f5ad21b9c29a7e94b83e344b6b6fc43e, type: 3}
   m_IsStackable: 1
+  m_IsUseableInInventory: 1
   m_Amount: 1
+  m_Duration: 15
+  m_HealingAmount: 2
+  m_EnergyAmount: 0
+  m_IsPoision: 0

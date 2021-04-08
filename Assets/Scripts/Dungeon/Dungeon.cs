@@ -1,213 +1,203 @@
-﻿using System.Collections.Generic;
+using System;
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
+public enum Direction { North, East, South, West}
 public class Dungeon : MonoBehaviour
 {
-    // add spanning tree to identify leaf nodes etc.
-    public List<Room>       m_Rooms;    // Contains room meta data
-    public Graph            m_Graph;
-    private int[]           m_Data;     // Contains the actual tile data
+    public Player           m_Player;
+    public DungeonGenerator m_DungeonGenerator = new DungeonGenerator();
+    public DungeonMesh      m_DungeonMesh;
+    public GameObject       m_Exit = null;
+    public GameObject       m_TorchPrefab = null;
+    public Grid2D           m_Grid;
     public int              m_Width;
     public int              m_Height;
-    public int              m_MinRoomWidth;
-    public int              m_MaxRoomWidth;
-    public int              m_MinRoomHeight;
-    public int              m_MaxRoomHeight;
-    public float            m_Threshold;
-    public int              m_Attempts;
-    GraphMinSpanningTree     graphTree;
-    int                     m_VisCount = 2;
 
-    public void Update()
+    public EnemyFactory     m_EnemyFactory;
+    private TilePathFinder  m_PathFinder;
+    private ObjectPool      m_TorchPool;
+    private List<GameObject> m_PotentialObjects;
+
+
+    public TilePathFinder TilePathFinder
     {
-        if (Input.GetKeyDown(KeyCode.Space))
-        {
-            Generate(m_Width, m_Height, m_MinRoomWidth, m_MaxRoomWidth, m_MinRoomHeight, m_MaxRoomHeight, m_Attempts);
-        }
-
-        if(Input.GetKeyDown(KeyCode.T))
-        {
-            m_VisCount++;
-            if (m_VisCount >= 3) { m_VisCount = 0; }
-        }
+        get { return m_PathFinder; }
     }
 
-    public void Generate(int width, int height, int minRoomWidth, int maxRoomWidth, int minRoomHeight, int maxRoomHeight, int attempts)
+    private void Start()
     {
-        m_Width = width;
-        m_Height = height;
-        m_MinRoomWidth = minRoomWidth;
-        m_MaxRoomWidth = maxRoomWidth;
-        m_MinRoomHeight = minRoomHeight;
-        m_MaxRoomHeight = maxRoomHeight;
-        m_Attempts = attempts;
-        m_Data = new int[m_Width * m_Height];
-
-        // Add ranom rooms too the dungeon
-        AddRooms();
-        CullRooms();
-
-        // Delaunay Triangulation
-        List<Node> nodes = new List<Node>();
-        for (int i = 0; i < m_Rooms.Count; i++)
-        {
-            Vector3 pos = (m_Rooms[i].GetCenter());
-            nodes.Add(new Node(new Vector2(pos.x, pos.z), m_Rooms[i].m_RoomID, i));
-        }
-
-       List<Triangle> triangleList = DelaunayTriangulation.Triangulate(nodes, m_Width, m_Height);
-
-        m_Graph = new Graph(true);
-
-        for (int i = 0; i < nodes.Count; ++i)
-        {
-            m_Graph.AddNode(nodes[i]);
-        }
-
-        // Add the triangle edges too the graph
-        foreach (Triangle triangle in triangleList)
-        {
-            m_Graph.AddEdge(new Edge(triangle.m_PointA.m_Index, triangle.m_PointB.m_Index));
-            m_Graph.AddEdge(new Edge(triangle.m_PointB.m_Index, triangle.m_PointC.m_Index));
-            m_Graph.AddEdge(new Edge(triangle.m_PointC.m_Index, triangle.m_PointA.m_Index));
-        }
-
-        graphTree = new GraphMinSpanningTree(m_Graph, -1);
-
-        // Now clear all edges from graph, add spanning tree edges AND 15% of the culled edges back too the graph.
-        m_Graph.ClearEdges();
-
-        foreach (Edge edge in graphTree.SpanningTree())
-        {
-            m_Graph.AddEdge(edge);
-        }
-
-        foreach (Edge edge in graphTree.CullEdges())
-        {
-            // 16% chance too add loop back
-            if (Random.Range(1, 6) <= 2)
-            {
-                m_Graph.AddEdge(edge);
-            }
-        }
+        m_TorchPool = new ObjectPool(m_TorchPrefab, 20);
+        GenerateNewDungeon();
     }
 
-    void AddRooms()
+    public void GenerateNewDungeon()
     {
-        // Re-init the room list deleting previous in the process (yay garbage hitch)
-        m_Rooms = new List<Room>();
+        if(m_Grid != null) { m_Grid = null; }
+        m_Grid = new Grid2D(m_Width, m_Height, 2);
+        m_DungeonGenerator.Generate(m_Grid, 4, 4, 8, 8, 250);
+        m_DungeonMesh.Create(m_Grid, 8);
+        m_PathFinder = new TilePathFinder(m_Grid);
 
-        // I prefer this over tiny Keep as the size in tiny keep is non determinastic
-        // this one although filled with redundant placment we decide map size upfront.
-        for (int i = 0; i < m_Attempts; ++i)
-        {
-            int width = Random.Range(m_MinRoomWidth, m_MaxRoomWidth);
-            int height = Random.Range(m_MinRoomHeight, m_MaxRoomHeight);
-            int x = Random.Range(1, m_Width - width);
-            int y = Random.Range(1, m_Height - height);
-
-            Room room = new Room(x, y, width, height, m_Rooms.Count);
-            bool overlapped = false;
-            // See if we collisde with an already placed room
-            for (int r = 0; r < m_Rooms.Count; ++r)
-            {
-                if (m_Rooms[r].Intersects(room))
-                {
-                    overlapped = true;
-                    break;
-                }
-            }
-
-            if (overlapped)
-            {
-                continue;
-            }
-
-            m_Rooms.Add(room);
-        }
+        PlaceTorchesAndObjects();
+        SetPlayerSpawn();
+        CreateExit();
+        PlaceEnemies();
     }
 
-    void CullRooms()
+    private void CreateExit()
     {
-        // get the mean widths
-        int meanWidth = 0;
-        int meanHeight = 0;
-        for (int i = 0; i < m_Rooms.Count; ++i)
+        if(m_Exit == null)
         {
-            meanWidth += m_Rooms[i].m_Width;
-            meanHeight += m_Rooms[i].m_Height;
+            throw new Exception("Forgot tooa dd exit dingy bat.");
         }
 
-        meanWidth /= m_Rooms.Count;
-        meanHeight /= m_Rooms.Count;
+        m_Exit.transform.position = m_Grid.TileToWorldPosition(m_DungeonGenerator.m_Rooms[m_DungeonGenerator.m_Rooms.Count - 1].GetCenter());
 
-        int tWidth = (int)(meanWidth * 0.95f);
-        int tHeight = (int)(meanHeight * 0.95f);
-
-        List<Room> cullList = new List<Room>();
-        for (int i = 0; i < m_Rooms.Count; ++i)
-        {
-            if (m_Rooms[i].m_Width < tWidth || m_Rooms[i].m_Height < tHeight)
-            {
-                cullList.Add(m_Rooms[i]);
-            }
-        }
-
-        for (int i = 0; i < cullList.Count; ++i)
-        {
-            m_Rooms.Remove(cullList[i]);
-        }
     }
 
-    public void OnDrawGizmos()
+    private void SetPlayerSpawn()
     {
-        if (m_Rooms != null)
-        {
-            for (int i = 0; i < m_Rooms.Count; ++i)
-            {
-                Gizmos.color = new Color((float)i / m_Rooms.Count, (float)i / m_Rooms.Count, (float)i / m_Rooms.Count);
-                Gizmos.DrawCube(m_Rooms[i].GetCenter(), m_Rooms[i].GetSize());
-                Gizmos.color = Color.green;
-                Gizmos.DrawSphere(m_Rooms[i].GetCenter(), 1);
-            }
-        }
+        m_Player.SetPosition(m_Grid.TileToWorldPosition(m_DungeonGenerator.m_Rooms[0].GetCenter()) + new Vector3(0,1,0));
+        m_PathFinder.FindPath(m_Grid.WorldToTilePosition(m_Player.transform.position.x, m_Player.transform.position.z));
+    }
 
-        if (m_Graph != null && m_Graph.NodeCount() > 0 && (graphTree is null) == false)
-        {
-            if (m_VisCount == 0 && (graphTree.SpanningTree() is null) == false)
-            {
-                foreach (Edge edge in graphTree.SpanningTree())
-                {
-                    if ((edge is null) == false)
-                    {
-                        Gizmos.color = Color.yellow;
-                        Gizmos.DrawLine(new Vector3(m_Graph.GetNode(edge.m_Start).m_Position.x, 0, m_Graph.GetNode(edge.m_Start).m_Position.y), new Vector3(m_Graph.GetNode(edge.m_End).m_Position.x, 0, m_Graph.GetNode(edge.m_End).m_Position.y));
-                    }
-                }
-            }
-            else if (m_VisCount == 1)
-            {
-                NodeIterator itr = new NodeIterator(m_Graph);
-                for (Node node = itr.Begin(); itr.End() == false; node = itr.Next())
-                {
-                    foreach (Edge edge in m_Graph.GetNodeEdgeList(node.m_Index))
-                    {
-                        Gizmos.color = Color.green;
-                        Gizmos.DrawLine(new Vector3(m_Graph.GetNode(edge.m_Start).m_Position.x, 0, m_Graph.GetNode(edge.m_Start).m_Position.y), new Vector3(m_Graph.GetNode(edge.m_End).m_Position.x, 0, m_Graph.GetNode(edge.m_End).m_Position.y));
-                    }
-                }
-            }
-            else if (m_VisCount == 2 && (graphTree.CullEdges() is null) == false)
-            {
-                List<Edge> edges = graphTree.CullEdges();
-                for (int i = 0; i < edges.Count; ++i)
-                {
-                    Edge edge = edges[i];
-                    Gizmos.color = Color.magenta;
-                    Gizmos.DrawLine(new Vector3(m_Graph.GetNode(edge.m_Start).m_Position.x, 0, m_Graph.GetNode(edge.m_Start).m_Position.y), new Vector3(m_Graph.GetNode(edge.m_End).m_Position.x, 0, m_Graph.GetNode(edge.m_End).m_Position.y));
+    // place torches and objects in rooms
+    public void PlaceTorchesAndObjects()
+    {
+        m_TorchPool.ResetPool();
 
+        if (m_PotentialObjects != null)
+        {
+            for (int i = 0; i < m_PotentialObjects.Count; ++i)
+            {
+                if (m_PotentialObjects[i] != null)
+                {
+                    GameObject.Destroy(m_PotentialObjects[i]);
                 }
             }
         }
+        else
+        {
+            m_PotentialObjects = new List<GameObject>();
+        }
+
+        foreach (Room room in m_DungeonGenerator.m_Rooms)
+        {
+            int count = UnityEngine.Random.Range(1, 4);
+
+            for (int i = 0; i < count; ++i)
+            {
+                // Get random point in room
+                Vector2 point = new Vector2(UnityEngine.Random.Range(room.Left(), room.Right()), UnityEngine.Random.Range(room.Bottom(), room.Top()));
+                GameManager.Instance.ItemFactory.InstantiateWorldObjectExisting(GameManager.Instance.ItemFactory.GetRandomConsumeable(), m_Grid.TileToWorldPosition(point.x, point.y) + new Vector3(0,1,0), Vector3.zero);
+            }
+
+            count = UnityEngine.Random.Range(0, 2);
+            for (int i = 0; i < count; ++i)
+            {
+                // Get random point in room
+                Vector2 point = new Vector2(UnityEngine.Random.Range(room.Left(), room.Right()), UnityEngine.Random.Range(room.Bottom(), room.Top()));
+                GameManager.Instance.ItemFactory.InstantiateWorldObjectExisting(GameManager.Instance.ItemFactory.GetRandomWeapon(), m_Grid.TileToWorldPosition(point.x, point.y) + new Vector3(0, 1, 0), Vector3.zero);
+            }
+        }
+
+        foreach (Room room in m_DungeonGenerator.m_Rooms)
+        {
+            int quaterWidth  = (int)(room.m_Width * 0.25f);
+            int quaterHeight = (int)(room.m_Height * 0.25f);
+
+            // Place Northern Torchs
+            PlaceSingleTorch(new Vector2(room.Left() + quaterWidth, room.Top()), Direction.North);
+            PlaceSingleTorch(new Vector2(room.Right() - quaterWidth, room.Top()), Direction.North);
+
+            // Place Eastern Torches
+            PlaceSingleTorch(new Vector2(room.Right(), room.Bottom() + quaterHeight), Direction.East);
+            PlaceSingleTorch(new Vector2(room.Right(), room.Top() - quaterHeight), Direction.East);
+
+            // Place Southern Torches
+            PlaceSingleTorch(new Vector2(room.Left() + quaterWidth, room.Bottom()), Direction.South);
+            PlaceSingleTorch(new Vector2(room.Right() - quaterWidth, room.Bottom()), Direction.South);
+
+            // Place Western Torches
+            PlaceSingleTorch(new Vector2(room.Left(), room.Bottom() + quaterHeight), Direction.West);
+            PlaceSingleTorch(new Vector2(room.Left(), room.Top() - quaterHeight), Direction.West);
+        }
+    }
+
+    public void PlaceSingleTorch(Vector2 tilePosition, Direction direction)
+    {
+        if (m_Grid.GetTile((int)tilePosition.x, (int)tilePosition.y).m_Type == TileType.Room)
+        {
+            float rot = 0;
+
+            if(direction == Direction.North)
+            {
+                rot = 90;
+                if(m_Grid.GetTile((int)tilePosition.x, (int)tilePosition.y + 1).m_Type == TileType.Room)
+                {
+                    return;
+                }
+            }
+
+            if (direction == Direction.East)
+            {
+                rot = 180;
+                if (m_Grid.GetTile((int)tilePosition.x + 1, (int)tilePosition.y).m_Type == TileType.Room)
+                {
+                    return;
+                }
+            }
+
+
+            if (direction == Direction.South)
+            {
+                rot = 270;
+                if (m_Grid.GetTile((int)tilePosition.x, (int)tilePosition.y - 1).m_Type == TileType.Room)
+                {
+                    return;
+                }
+            }
+
+            if (direction == Direction.West)
+            {
+                rot = 0;
+                if (m_Grid.GetTile((int)tilePosition.x - 1, (int)tilePosition.y).m_Type == TileType.Room)
+                {
+                    return;
+                }
+            }
+
+
+            GameObject torch = m_TorchPool.GetPooledObject();
+            torch.transform.position = m_Grid.TileToWorldPosition(tilePosition.x, tilePosition.y);
+            torch.transform.rotation = Quaternion.Euler(0, rot, 0);
+        }
+    }
+
+    public void PlaceEnemies()
+    {
+        m_EnemyFactory.Reset();
+
+        for (int i = 1; i < m_DungeonGenerator.m_Rooms.Count; ++i)
+        {
+            Room room = m_DungeonGenerator.m_Rooms[i];
+            int count = UnityEngine.Random.Range(1, 2);
+
+            for (int j = 0; j < count; ++j)
+            {
+                // Get random point in room
+                Vector2 point = new Vector2(UnityEngine.Random.Range(room.Left(), room.Right()), UnityEngine.Random.Range(room.Bottom(), room.Top()));
+                Enemy enemy = m_EnemyFactory.CreateRandomEnemy();
+                enemy.SetPosition(m_Grid.TileToWorldPosition(point));
+                m_Grid.SetTileBlockedFromWorld(enemy.transform.position.x, enemy.transform.position.z, true);
+            }
+        }
+    }
+
+    public Vector2 GetPlayerTile()
+    {
+        return m_Grid.WorldToTilePosition(m_Player.transform.position.x, m_Player.transform.position.z);
     }
 }
