@@ -4,7 +4,6 @@ using UnityEngine;
 
 public enum AIState { Idle, Chasing, Attacking }
 
-[RequireComponent(typeof(SpriteRenderer))]
 public class Enemy : Unit
 {
     public AIState          m_State = AIState.Idle;
@@ -12,6 +11,8 @@ public class Enemy : Unit
     public int              m_Damage;
     public float            m_AttackRate = 1;
     public float            m_MoveRate = 1;
+    public Animator         m_Animator;
+    public AudioClip        m_HitSound;
 
     private float m_AttackTimer = 0;
     private float m_MoveTimer = 0;
@@ -40,6 +41,7 @@ public class Enemy : Unit
             forward.y = 0;
             if (forward == Vector3.zero) { forward = Vector3.forward; }
             transform.rotation = Quaternion.LookRotation(forward);
+            transform.position = Vector3.Lerp(transform.position, m_TargetPosition, m_MoveSpeed * Time.deltaTime);
 
             switch (m_State)
             {
@@ -57,13 +59,13 @@ public class Enemy : Unit
                     break;
             }
         }
-
-        transform.position = Vector3.Lerp(transform.position, m_TargetPosition, m_MoveSpeed * Time.deltaTime);
     }
 
     public void TakeDamage(int amount)
     {
         m_Health.CurrentValue -= amount;
+        m_Animator.Play("Stun", -1, 0);
+        GameManager.Instance.PlaySound(m_HitSound, Random.Range(0.8f, 1.2f));
     }
 
     public void Idle()
@@ -130,6 +132,7 @@ public class Enemy : Unit
             m_AttackTimer = m_AttackRate;
             GameManager.Instance.Player.TakeDamage(m_Damage);
             GameManager.Instance.Player.AddStatusEffect(StatusEffect.GetStatusEffect(m_StatusOnAttack));
+            m_Animator.Play("Attack", -1, 0);
         }
     }
 
@@ -137,8 +140,7 @@ public class Enemy : Unit
     {
         // Do death
         m_Dungeon.m_Grid.SetTileBlockedFromWorld(m_TargetPosition.x, m_TargetPosition.z, false);
-        // Delete when death finished
-        Destroy(gameObject);
+        gameObject.SetActive(false);
     }
 
     public bool IsMoving()

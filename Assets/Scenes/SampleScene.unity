@@ -8085,11 +8085,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Enemies:
-  - {fileID: 6651358054513232691, guid: 89ebb890f9efe3848946e7ad6fde57cd, type: 3}
-  - {fileID: 5871755259467300071, guid: 074d8b346bba4aa459171bb6287d43b5, type: 3}
-  - {fileID: 3934215057566598103, guid: ca087a5226c43ad47a05d0bbec065273, type: 3}
-  - {fileID: 1606180887896252504, guid: 56abb6602428ab1489af344c8a48d3d9, type: 3}
-  - {fileID: 4603004978739849870, guid: 32b8141128e6a644898323a8b316f76f, type: 3}
+  - {fileID: 7101575830561655352, guid: 89ebb890f9efe3848946e7ad6fde57cd, type: 3}
+  - {fileID: 9115817425704793514, guid: 074d8b346bba4aa459171bb6287d43b5, type: 3}
+  - {fileID: 352084335238406797, guid: 32b8141128e6a644898323a8b316f76f, type: 3}
+  - {fileID: 8898709069268929785, guid: 56abb6602428ab1489af344c8a48d3d9, type: 3}
+  - {fileID: 7143881429542874842, guid: ca087a5226c43ad47a05d0bbec065273, type: 3}
 --- !u!1 &1659969876
 GameObject:
   m_ObjectHideFlags: 0

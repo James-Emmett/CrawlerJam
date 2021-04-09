@@ -71,8 +71,9 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    public void PlaySound(AudioClip clip)
+    public void PlaySound(AudioClip clip, float pitch = 1)
     {
+        m_AudioSource.pitch = pitch;
         m_AudioSource.PlayOneShot(clip);
     }
 
