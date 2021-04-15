@@ -71,7 +71,7 @@ public class ItemSlot : MonoBehaviour, IDropHandler, IPointerClickHandler, IBegi
             itemUI.m_ItemDropped = false;
             SetItem(itemUI.m_Item);
 
-            if (itemUI.m_PrevItemSlot.m_IsHotBar)
+            if (itemUI.m_PrevItemSlot != null && itemUI.m_PrevItemSlot.m_IsHotBar)
             {
                 GameManager.Instance.Player.RemoveItemFromHotBar(itemUI.m_PrevItemSlot.m_BarIndex);
             }
