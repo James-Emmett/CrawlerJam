@@ -6,8 +6,6 @@ using System.Threading.Tasks;
 
 public class Edge
 {
-    // Hopefully these nodes are just pointers? not sure how C# works
-    // in that sense???
     public int  m_Start;
     public int  m_End;
     public int  m_Cost = 1;
